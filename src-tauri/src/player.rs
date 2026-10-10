@@ -6,9 +6,12 @@ use std::{
     os::unix::{fs::DirBuilderExt, net::UnixStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::atomic::{AtomicU64, Ordering},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+
+static RUNTIME_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Serialize, PartialEq, Debug)]
 pub struct Station {
@@ -172,12 +175,13 @@ impl Player {
             .unwrap_or(STATIONS[0]);
         // Private directory: mpv IPC can execute commands and must stay local to this user.
         let runtime_dir = std::env::temp_dir().join(format!(
-            "lofi-radio-{}-{}",
+            "lofi-radio-{}-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_err(|e| e.to_string())?
-                .as_nanos()
+                .as_nanos(),
+            RUNTIME_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         fs::DirBuilder::new()
             .mode(0o700)
