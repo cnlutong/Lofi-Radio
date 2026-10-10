@@ -130,6 +130,18 @@ pub struct Player {
 }
 
 fn binary(name: &str) -> Result<PathBuf, String> {
+    if let Ok(executable) = std::env::current_exe()
+        && let Some(contents) = executable.parent().and_then(Path::parent)
+    {
+        let bundled = contents.join("Resources/runtime/bin");
+        if bundled.is_dir() {
+            let path = bundled.join(name);
+            return path
+                .is_file()
+                .then_some(path)
+                .ok_or_else(|| format!("安装包缺少 {name}，请重新下载 Lofi Radio"));
+        }
+    }
     // Finder-launched apps do not inherit the terminal's Homebrew PATH.
     [
         PathBuf::from("/opt/homebrew/bin"),

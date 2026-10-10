@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "resources": { "runtime/": "runtime/" },
+    "macOS": {
+      "minimumSystemVersion": "15.0",
+      "signingIdentity": "-",
+      "hardenedRuntime": false
+    }
+  }
+}

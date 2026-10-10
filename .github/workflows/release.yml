@@ -1,0 +1,82 @@
+name: macOS release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: aarch64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install build and playback dependencies
+        run: |
+          brew install mpv deno python@3.14
+          rustup update stable --no-self-update
+          npm ci
+      - name: Check tag matches app version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 - <<'PY'
+          import json, os
+          version = json.load(open('package.json'))['version']
+          assert os.environ['GITHUB_REF_NAME'] == f'v{version}', 'Tag must match app version'
+          assert json.load(open('src-tauri/tauri.conf.json'))['version'] == version
+          PY
+      - name: Run Rust checks
+        run: npm test
+      - name: Prepare self-contained runtime and corresponding sources
+        run: npm run release:prepare
+      - name: Build installer
+        run: npm run release:build
+      - name: Verify packaged dependencies and signatures
+        run: |
+          python3 scripts/check-runtime.py 'src-tauri/target/release/bundle/macos/Lofi Radio.app/Contents/Resources/runtime'
+          codesign --verify --deep --strict 'src-tauri/target/release/bundle/macos/Lofi Radio.app'
+          hdiutil verify src-tauri/target/release/bundle/dmg/*.dmg
+      - name: Collect release files
+        run: |
+          mkdir release-assets
+          cp src-tauri/target/release/bundle/dmg/*.dmg release-assets/
+          cp src-tauri/target/third-party-sources.tar.gz 'release-assets/third-party-sources-${{ matrix.arch }}.tar.gz'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish installers and source archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release-assets
+          sha256sum *.dmg *.tar.gz > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" ./* --verify-tag --title "Lofi Radio $GITHUB_REF_NAME" --notes-file ../.github/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"

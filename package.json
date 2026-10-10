@@ -9,6 +9,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "release:prepare": "python3 scripts/prepare-runtime.py --sources",
+    "release:build": "npm run tauri -- build --config src-tauri/tauri.release.conf.json",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:live": "cargo test --manifest-path src-tauri/Cargo.toml live_stream_controls -- --ignored --nocapture"
   },

@@ -3,7 +3,15 @@
 一个安静的 macOS 菜单栏播放器。Tauri 2 + Rust + TypeScript/CSS，使用 mpv 的 yt-dlp hook 播放 13 个 YouTube 直播音频源：
 [Lofi Girl](https://www.youtube.com/@LofiGirl/streams)（学习、睡眠、爵士、亚洲、雨天、House）、[Chillhop Music](https://www.youtube.com/@ChillhopMusic/streams)（爵士、学习、深夜）、[The Bootleg Boy](https://www.youtube.com/@thebootlegboy/streams)（睡眠）、[Homework Radio](https://www.youtube.com/@HomeworkRadio/streams)（木屋）、[Chill with Taiki](https://www.youtube.com/@ChillwithTaiki/streams) 和 [Purrple Cat](https://www.youtube.com/@PurrpleCat/streams)。主界面和状态栏右键菜单共用此列表。直播链接于 2026-10-10 从官方频道核对，停播或更换链接时需更新 `src-tauri/src/player.rs` 的 `STATIONS`。
 
-## 运行
+## 下载与安装
+
+从 [GitHub Releases](https://github.com/cnlutong/Lofi-Radio/releases/latest) 下载对应的 `.dmg`：Apple 芯片（M1/M2/M3/M4 等）选择 `aarch64`，Intel Mac 选择 `x64`。安装包要求 macOS 15 或更新版本。
+
+打开 DMG，将 **Lofi Radio** 拖到 **Applications（应用程序）**，再从应用程序启动。播放依赖已内置，无需安装 Homebrew、Python、mpv、yt-dlp 或 Deno。启动后在菜单栏找到「lofi」，左键点击播放，右键可打开主界面。
+
+当前版本采用 ad-hoc 签名，尚未经过 Apple Developer ID 签名和公证。若首次打开被 macOS 拦截，请在「系统设置 → 隐私与安全性」中选择「仍要打开」，再确认。参见 [Apple 的说明](https://support.apple.com/zh-cn/102445)。
+
+## 从源码运行
 
 需要 macOS 12+、Xcode Command Line Tools、Node.js 22.12+ 和 Homebrew。
 
@@ -21,7 +29,15 @@ npm run tauri build
 open 'src-tauri/target/release/bundle/macos/Lofi Radio.app'
 ```
 
-本原型使用本机 Homebrew 依赖，尚未把 mpv、yt-dlp、Deno 打包进应用。Finder 启动时会主动查找 `/opt/homebrew/bin` 和 `/usr/local/bin`，不依赖终端 PATH。构建产物仅覆盖当前 Mac 的架构，尚未使用 Developer ID 签名或公证。
+上述开发构建使用本机 Homebrew 依赖。构建包含播放依赖的安装包：
+
+```sh
+brew install mpv deno python@3.14
+npm run release:prepare
+npm run release:build
+```
+
+DMG 位于 `src-tauri/target/release/bundle/dmg/`。发布构建在 macOS 15 上分别编译 Apple 芯片与 Intel 版本；在更高版本 macOS 上打包的 Homebrew 依赖可能要求更高系统版本，不能直接声称兼容 macOS 15。推送 `v*` 标签会由 GitHub Actions 构建、检查并发布两个安装包及对应的第三方源码归档。
 
 ## 使用
 
@@ -48,7 +64,7 @@ npm run build     # TypeScript 检查和前端构建
 
 当前仅验证 macOS。Windows 的 Tauri 界面可以复用，但播放器 IPC 的 Unix socket 还需要改用 Windows named pipe，并完成依赖分发与实机验证。
 
-这是使用非官方 YouTube 接入方式的本地技术原型。正式分发前需要处理平台条款和音乐授权；YouTube 变更也可能导致解析失效。依赖更新可运行 `brew upgrade yt-dlp mpv deno`。
+这是使用非官方 YouTube 接入方式的本地播放器；不分发音乐文件。直播音乐权利归原权利人所有。YouTube 变更可能导致解析失效，安装版请更新至最新 Release；开发环境可运行 `brew upgrade yt-dlp mpv deno`。
 
 ## 本机验证记录
 
@@ -65,3 +81,5 @@ npm run build     # TypeScript 检查和前端构建
 ## 许可证
 
 本项目采用 [MIT 许可证](LICENSE) 开源。第三方依赖遵循各自的许可证；直播音乐及第三方品牌素材的权利归原权利人所有，不包含在本项目的 MIT 授权中。
+
+安装包内的 `Contents/Resources/runtime/licenses/` 包含第三方许可证及版本记录；对应源码、补丁和 Homebrew 构建配方随 Release 的 `third-party-sources` 归档提供。mpv 及其部分依赖使用 GPL/LGPL，不适用本项目的 MIT 许可证。
