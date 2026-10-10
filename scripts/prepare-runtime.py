@@ -194,10 +194,9 @@ exec "$bin/python3" -s "$bin/../yt-dlp.zip" "$@"
                 downloads.append((patch["url"], source_dir / name / f"patch-{index}.patch", patch["sha256"]))
             elif "file" in patch and args.sources:
                 if homebrew_commit is None:
-                    homebrew_commit = json.loads(output(
-                        "curl", "--fail", "--silent", "--show-error",
-                        "https://api.github.com/repos/Homebrew/homebrew-core/commits/HEAD",
-                    ))["sha"]
+                    homebrew_commit = output(
+                        "git", "ls-remote", "https://github.com/Homebrew/homebrew-core.git", "HEAD",
+                    ).split()[0]
                 downloads.append((
                     f"https://raw.githubusercontent.com/Homebrew/homebrew-core/{homebrew_commit}/{patch['file']}",
                     source_dir / name / patch["file"], None,
