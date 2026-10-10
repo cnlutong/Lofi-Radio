@@ -132,10 +132,13 @@ def main():
         path = source_dir / filename
         digest = download(url, path)
         download(url + ".sig", path.with_suffix(path.suffix + ".sig"))
+        # Read the populated MSYS2 trust store without pacman-key's root-only config checks.
         verified = subprocess.run([str(msys / "usr/bin/bash.exe"), "-lc",
-                                   'pacman-key --verify "$1"', "--", path.as_posix() + ".sig"],
+                                   'gpg --homedir /etc/pacman.d/gnupg --batch --lock-never '
+                                   '--no-auto-check-trustdb --status-fd 1 --verify "$1" "$2"',
+                                   "--", path.as_posix() + ".sig", path.as_posix()],
                                   text=True, capture_output=True)
-        if verified.returncode:
+        if verified.returncode or not re.search(r"^\[GNUPG:\] TRUST_(FULLY|ULTIMATE)\b", verified.stdout, re.M):
             raise RuntimeError(f"Source signature failed: {filename}\n{verified.stdout}\n{verified.stderr}")
         print(f"Verified source: {filename}", flush=True)
         return name, {"version": version, "source": url, "sha256": digest}
