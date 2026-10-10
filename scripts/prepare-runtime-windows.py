@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+from threading import Lock
 import time
 import urllib.request
 import zipfile
@@ -110,6 +111,8 @@ def main():
     manifest = {"yt-dlp": {"version": YTDLP_VERSION, "sha256": ytdlp_sha},
                 "deno": {"version": DENO_VERSION, "archive_sha256": deno_sha}, "msys2": {}}
 
+    archive_locks = {}
+
     def package_sources(name):
         directory, record = records[name]
         version = record["VERSION"][0]
@@ -130,16 +133,18 @@ def main():
         filename = f"{base}-{version.split(':')[-1]}.src.tar.zst"
         url = f"https://repo.msys2.org/mingw/sources/{filename}"
         path = source_dir / filename
-        digest = download(url, path)
-        download(url + ".sig", path.with_suffix(path.suffix + ".sig"))
-        # Read the populated MSYS2 trust store without pacman-key's root-only config checks.
-        verified = subprocess.run([str(msys / "usr/bin/bash.exe"), "-lc",
-                                   'gpg --homedir /etc/pacman.d/gnupg --batch --lock-never '
-                                   '--no-auto-check-trustdb --status-fd 1 --verify "$1" "$2"',
-                                   "--", path.as_posix() + ".sig", path.as_posix()],
-                                  text=True, capture_output=True)
-        if verified.returncode or not re.search(r"^\[GNUPG:\] TRUST_(FULLY|ULTIMATE)\b", verified.stdout, re.M):
-            raise RuntimeError(f"Source signature failed: {filename}\n{verified.stdout}\n{verified.stderr}")
+        # Split DLL packages (e.g. gcc-libs and libgfortran) share the same source archive.
+        with archive_locks.setdefault(filename, Lock()):
+            digest = download(url, path)
+            download(url + ".sig", path.with_suffix(path.suffix + ".sig"))
+            # Read the populated MSYS2 trust store without pacman-key's root-only config checks.
+            verified = subprocess.run([str(msys / "usr/bin/bash.exe"), "-lc",
+                                       'gpg --homedir /etc/pacman.d/gnupg --batch --lock-never '
+                                       '--no-auto-check-trustdb --status-fd 1 --verify "$1" "$2"',
+                                       "--", path.as_posix() + ".sig", path.as_posix()],
+                                      text=True, capture_output=True)
+            if verified.returncode or not re.search(r"^\[GNUPG:\] TRUST_(FULLY|ULTIMATE)\b", verified.stdout, re.M):
+                raise RuntimeError(f"Source signature failed: {filename}\n{verified.stdout}\n{verified.stderr}")
         print(f"Verified source: {filename}", flush=True)
         return name, {"version": version, "source": url, "sha256": digest}
 

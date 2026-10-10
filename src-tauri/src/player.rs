@@ -605,6 +605,17 @@ impl Player {
 
     pub fn stop(&mut self) {
         self.allow_sleep();
+        #[cfg(windows)]
+        if let Some(ipc) = self.ipc.as_mut()
+            && writeln!(ipc.get_mut(), "{}", json!({"command": ["quit"]})).is_ok()
+            && let Some(child) = self.child.as_mut()
+        {
+            // Let mpv cancel its yt-dlp/Deno subprocesses before the forced-stop fallback.
+            let deadline = Instant::now() + Duration::from_millis(300);
+            while matches!(child.try_wait(), Ok(None)) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
         self.ipc = None;
         if let Some(mut child) = self.child.take() {
             let _ = child.kill();
