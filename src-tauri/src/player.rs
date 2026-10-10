@@ -297,7 +297,18 @@ impl Player {
         #[cfg(target_os = "macos")]
         command.arg("--ao=avfoundation");
         #[cfg(windows)]
-        command.args(["--ao=wasapi", "--audio-exclusive=no"]);
+        command
+            .args(["--ao=wasapi", "--audio-exclusive=no"])
+            .arg(format!(
+                "--tls-ca-file={}",
+                binary("mpv")?
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join("cacert.pem")
+                    .display()
+            ));
         #[cfg(all(test, windows))]
         command.arg("--ao=null"); // Hosted Windows runners have no audio device.
         self.child = Some(command.spawn().map_err(|e| format!("无法启动 mpv：{e}"))?);

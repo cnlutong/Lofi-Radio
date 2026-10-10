@@ -137,9 +137,17 @@ def main():
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         manifest["msys2"] = dict(pool.map(package_sources, sorted(packages)))
-    common = msys / "usr/share/licenses/common"
-    assert common.is_dir(), "Missing standard license texts"
-    shutil.copytree(common, notices / "common")
+    for name, url in {
+        "GPL-2.0.txt": "old-licenses/gpl-2.0.txt",
+        "GPL-3.0.txt": "gpl-3.0.txt",
+        "LGPL-2.1.txt": "old-licenses/lgpl-2.1.txt",
+        "LGPL-3.0.txt": "lgpl-3.0.txt",
+    }.items():
+        download("https://www.gnu.org/licenses/" + url, notices / "common" / name)
+    certificate = RUNTIME / "cacert.pem"
+    with urllib.request.urlopen("https://curl.se/ca/cacert.pem.sha256", timeout=30) as response:
+        certificate_sha = response.read().decode().split()[0]
+    download("https://curl.se/ca/cacert.pem", certificate, certificate_sha)
     for filename in ("LICENSE", "THIRD_PARTY_LICENSES.txt"):
         download(f"https://raw.githubusercontent.com/yt-dlp/yt-dlp/{YTDLP_VERSION}/{filename}", notices / f"yt-dlp-{filename}")
     download(f"https://raw.githubusercontent.com/denoland/deno/v{DENO_VERSION}/LICENSE.md", notices / "deno-LICENSE.md")

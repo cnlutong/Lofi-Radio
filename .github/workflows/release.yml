@@ -82,10 +82,11 @@ jobs:
         with:
           workspaces: src-tauri
       - uses: msys2/setup-msys2@v2
+        id: msys
         with:
           msystem: UCRT64
           update: true
-          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-binutils licenses
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-binutils
       - name: Install frontend dependencies and check version
         shell: pwsh
         run: |
@@ -98,7 +99,7 @@ jobs:
         shell: pwsh
         run: |
           python scripts/prepare-runtime-windows.py --check
-          python scripts/prepare-runtime-windows.py
+          python scripts/prepare-runtime-windows.py --msys-root "${{ steps.msys.outputs.msys2-location }}"
       - name: Build installer and check packaged player
         shell: pwsh
         run: |
