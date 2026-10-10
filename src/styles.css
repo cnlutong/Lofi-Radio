@@ -1,0 +1,33 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  color: #373d35;
+  background: #f5f4ee;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; padding: 36px 28px 28px; }
+header { position: absolute; top: 12px; right: 20px; }
+button { font: inherit; cursor: pointer; border: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #9ba887; outline-offset: 4px; }
+.quiet { padding: 4px 8px; color: #798172; background: transparent; font-size: 20px; }
+.station { text-align: center; padding-top: 8px; }
+.station-icon { margin: 0 auto 8px; display: grid; place-items: center; height: 52px; }
+.station-icon img { display: block; width: 88px; height: 44px; object-fit: contain; }
+.station-name { font-size: 22px; font-weight: 600; letter-spacing: -0.8px; }
+.source-row { margin-top: 18px; display: grid; gap: 5px; }
+.source-row label, #station-hint { font-size: 11px; color: #798172; }
+#station { width: 100%; font: inherit; font-size: 13px; color: #373d35; background: #eeeee5; border: 1px solid #d9ddcf; border-radius: 8px; padding: 8px; }
+#status { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 11px; color: #798172; margin: 12px 0; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: #b0b5a7; }
+body[data-status="playing"] .dot { background: #72895a; }
+body[data-status="error"] .dot { background: #b17460; }
+.play { width: 100%; border-radius: 14px; background: #687d53; color: #fff; padding: 11px; font-size: 13px; display: flex; justify-content: center; align-items: center; gap: 10px; }
+.play:hover { background: #5d704a; }
+.play:disabled { cursor: wait; opacity: 0.65; }
+#play-icon { font-size: 13px; }
+.volume-row { display: flex; justify-content: space-between; font-size: 11px; color: #858b7e; margin-top: 12px; }
+input[type="range"] { width: 100%; accent-color: #687d53; height: 18px; margin: 7px 0 0; cursor: pointer; }
+#error { font-size: 11px; color: #a4624d; line-height: 1.6; margin: 10px 0 0; overflow-wrap: anywhere; max-height: 48px; overflow: auto; }
