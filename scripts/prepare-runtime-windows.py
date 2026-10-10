@@ -71,10 +71,10 @@ def main():
     for directory in (msys / "var/lib/pacman/local").iterdir():
         if not (directory / "desc").is_file():
             continue
-        record = fields((directory / "desc").read_text())
+        record = fields((directory / "desc").read_text(encoding="utf-8"))
         name = record["NAME"][0]
         records[name] = (directory, record)
-        for filename in fields((directory / "files").read_text()).get("FILES", []):
+        for filename in fields((directory / "files").read_text(encoding="utf-8")).get("FILES", []):
             if filename:
                 owners[filename.lower()] = name
     available = {path.name.lower(): path for path in binaries.glob("*.dll")}
@@ -132,8 +132,11 @@ def main():
         path = source_dir / filename
         digest = download(url, path)
         download(url + ".sig", path.with_suffix(path.suffix + ".sig"))
-        subprocess.run([str(msys / "usr/bin/bash.exe"), "-lc",
-                        'pacman-key --verify "$1"', "--", path.as_posix() + ".sig"], check=True, capture_output=True)
+        verified = subprocess.run([str(msys / "usr/bin/bash.exe"), "-lc",
+                                   'pacman-key --verify "$1"', "--", path.as_posix() + ".sig"],
+                                  text=True, capture_output=True)
+        if verified.returncode:
+            raise RuntimeError(f"Source signature failed: {filename}\n{verified.stdout}\n{verified.stderr}")
         print(f"Verified source: {filename}", flush=True)
         return name, {"version": version, "source": url, "sha256": digest}
 
