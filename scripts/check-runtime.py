@@ -49,9 +49,10 @@ def main():
         print(result.stdout.splitlines()[0])
     python_environment = {**environment, "PYTHONHOME": str(runtime / "python"),
                           "SSL_CERT_FILE": str(runtime / "cacert.pem")}
-    subprocess.run([str(runtime / "bin/python3"), "-s", "-c",
+    subprocess.run([str(runtime / "bin/python3"), "-B", "-s", "-c",
                     "import ssl, sqlite3, bz2, lzma; assert ssl.create_default_context().cert_store_stats()['x509_ca'] > 0"],
                    env=python_environment, check=True, timeout=30)
+    assert not list(runtime.rglob("__pycache__")), "Python wrote cache files into the signed app"
     if args.test_executable:
         # Run the existing Rust checks from an app layout so binary() selects bundled tools.
         with tempfile.TemporaryDirectory(prefix="Lofi Radio check ") as temporary:

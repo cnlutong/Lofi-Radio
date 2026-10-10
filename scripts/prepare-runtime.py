@@ -148,7 +148,7 @@ set -eu
 bin=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export PYTHONHOME="$bin/../python"
 export SSL_CERT_FILE="$bin/../cacert.pem"
-exec "$bin/python3" -s "$bin/../yt-dlp.zip" "$@"
+exec "$bin/python3" -B -s "$bin/../yt-dlp.zip" "$@"
 ''')
     wrapper.chmod(0o755)
 
