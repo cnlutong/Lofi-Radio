@@ -1,6 +1,4 @@
 mod player;
-#[cfg(windows)]
-mod windows;
 
 use player::{Player, STATIONS, Snapshot, Station};
 use std::{sync::Mutex, thread, time::Duration};
@@ -14,10 +12,7 @@ use tauri::{
 type Radio = Mutex<Player>;
 
 fn tray_icon(status: &str) -> tauri::Result<Image<'static>> {
-    #[cfg(target_os = "macos")]
     let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
-    #[cfg(not(target_os = "macos"))]
-    let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
     if matches!(status, "paused" | "stopped" | "error") {
         let mut rgba = icon.rgba().to_vec();
         for pixel in rgba.chunks_exact_mut(4) {
@@ -34,7 +29,7 @@ fn publish(app: &tauri::AppHandle, snapshot: &Snapshot) {
     if let Some(tray) = app.tray_by_id("radio") {
         let _ = tray.set_tooltip(Some(snapshot.label()));
         if let Ok(icon) = tray_icon(&snapshot.status) {
-            let _ = tray.set_icon_with_as_template(Some(icon), cfg!(target_os = "macos"));
+            let _ = tray.set_icon_with_as_template(Some(icon), true);
         }
     }
     // These handles refer to the menu already attached to the tray.
@@ -210,7 +205,7 @@ pub fn run() {
             });
             TrayIconBuilder::with_id("radio")
                 .icon(tray_icon("stopped")?)
-                .icon_as_template(cfg!(target_os = "macos"))
+                .icon_as_template(true)
                 .tooltip("Lofi Radio")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
