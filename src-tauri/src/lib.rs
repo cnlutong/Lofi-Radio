@@ -1,4 +1,6 @@
 mod player;
+#[cfg(windows)]
+mod windows;
 
 use player::{Player, STATIONS, Snapshot, Station};
 use std::{sync::Mutex, thread, time::Duration};
@@ -12,7 +14,10 @@ use tauri::{
 type Radio = Mutex<Player>;
 
 fn tray_icon(status: &str) -> tauri::Result<Image<'static>> {
+    #[cfg(target_os = "macos")]
     let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+    #[cfg(not(target_os = "macos"))]
+    let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
     if matches!(status, "paused" | "stopped" | "error") {
         let mut rgba = icon.rgba().to_vec();
         for pixel in rgba.chunks_exact_mut(4) {
@@ -29,13 +34,14 @@ fn publish(app: &tauri::AppHandle, snapshot: &Snapshot) {
     if let Some(tray) = app.tray_by_id("radio") {
         let _ = tray.set_tooltip(Some(snapshot.label()));
         if let Ok(icon) = tray_icon(&snapshot.status) {
-            let _ = tray.set_icon_with_as_template(Some(icon), true);
+            let _ = tray.set_icon_with_as_template(Some(icon), cfg!(target_os = "macos"));
         }
     }
     // These handles refer to the menu already attached to the tray.
     if let Some(controls) = app.try_state::<Controls>() {
         let _ = controls.status.set_text(snapshot.label());
         let _ = controls.toggle.set_text(snapshot.toggle_label());
+        let _ = controls.prevent_sleep.set_checked(snapshot.prevent_sleep);
         let _ = controls
             .volume
             .set_text(format!("音量 · {}%", snapshot.volume));
@@ -48,12 +54,14 @@ fn publish(app: &tauri::AppHandle, snapshot: &Snapshot) {
 struct Controls {
     status: MenuItem<tauri::Wry>,
     toggle: MenuItem<tauri::Wry>,
+    prevent_sleep: CheckMenuItem<tauri::Wry>,
     volume: Submenu<tauri::Wry>,
     stations: Vec<(&'static str, CheckMenuItem<tauri::Wry>)>,
 }
 
 enum Action {
     Toggle,
+    ToggleSleepPrevention,
     Volume(u8),
     Station(String),
 }
@@ -65,10 +73,14 @@ async fn control(app: tauri::AppHandle, action: Action) -> Result<Snapshot, Stri
         let result = match &action {
             Action::Volume(v) => player.set_volume(*v),
             Action::Toggle => player.toggle(),
+            Action::ToggleSleepPrevention => {
+                let enabled = !player.snapshot.prevent_sleep;
+                player.set_prevent_sleep(enabled)
+            }
             Action::Station(id) => player.select_station(id),
         };
         if let Err(error) = &result {
-            if !matches!(action, Action::Volume(_)) {
+            if matches!(action, Action::Toggle | Action::Station(_)) {
                 player.fail(error.clone());
             } else {
                 player.snapshot.error = Some(error.clone());
@@ -143,6 +155,14 @@ pub fn run() {
             app.manage(Mutex::new(player));
             let status = MenuItem::with_id(app, "status", "准备好开始专注", false, None::<&str>)?;
             let toggle = MenuItem::with_id(app, "toggle", "播放直播", true, None::<&str>)?;
+            let prevent_sleep = CheckMenuItem::with_id(
+                app,
+                "prevent-sleep",
+                "播放时电脑不休眠",
+                true,
+                true,
+                None::<&str>,
+            )?;
             let volume = Submenu::new(app, "音量", true)?;
             let sources = Submenu::new(app, "直播源", true)?;
             let mut stations = Vec::new();
@@ -169,16 +189,28 @@ pub fn run() {
             }
             let show = MenuItem::with_id(app, "show", "显示主界面", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 Lofi Radio", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&status, &toggle, &sources, &volume, &show, &quit])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &status,
+                    &toggle,
+                    &sources,
+                    &volume,
+                    &prevent_sleep,
+                    &show,
+                    &quit,
+                ],
+            )?;
             app.manage(Controls {
                 status,
                 toggle,
+                prevent_sleep,
                 volume,
                 stations,
             });
             TrayIconBuilder::with_id("radio")
                 .icon(tray_icon("stopped")?)
-                .icon_as_template(true)
+                .icon_as_template(cfg!(target_os = "macos"))
                 .tooltip("Lofi Radio")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -189,6 +221,12 @@ pub fn run() {
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let _ = control(app, Action::Toggle).await;
+                        });
+                    }
+                    "prevent-sleep" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = control(app, Action::ToggleSleepPrevention).await;
                         });
                     }
                     id if id.starts_with("volume-") => {

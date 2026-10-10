@@ -1,14 +1,20 @@
 use serde::Serialize;
 use serde_json::{Value, json};
+#[cfg(unix)]
+use std::os::unix::{fs::DirBuilderExt, net::UnixStream as IpcStream};
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
-    os::unix::{fs::DirBuilderExt, net::UnixStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
+#[cfg(windows)]
+use {
+    crate::windows::Pipe as IpcStream,
+    std::os::windows::{io::OwnedHandle, process::CommandExt},
 };
 
 static RUNTIME_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -94,6 +100,7 @@ pub struct Snapshot {
     pub station: Station,
     pub status: String,
     pub volume: u8,
+    pub prevent_sleep: bool,
     pub error: Option<String>,
 }
 
@@ -124,7 +131,11 @@ impl Snapshot {
 pub struct Player {
     pub snapshot: Snapshot,
     child: Option<Child>,
-    ipc: Option<BufReader<UnixStream>>,
+    #[cfg(not(windows))]
+    sleep_inhibitor: Option<Child>,
+    #[cfg(windows)]
+    sleep_inhibitor: Option<OwnedHandle>,
+    ipc: Option<BufReader<IpcStream>>,
     runtime_dir: PathBuf,
     settings: PathBuf,
     log: PathBuf,
@@ -133,12 +144,24 @@ pub struct Player {
 }
 
 fn binary(name: &str) -> Result<PathBuf, String> {
+    let filename = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_owned()
+    };
     if let Ok(executable) = std::env::current_exe()
-        && let Some(contents) = executable.parent().and_then(Path::parent)
+        && let Some(parent) = executable.parent()
     {
-        let bundled = contents.join("Resources/runtime/bin");
+        let bundled = if cfg!(windows) {
+            parent.join("runtime/bin")
+        } else {
+            parent
+                .parent()
+                .unwrap_or(parent)
+                .join("Resources/runtime/bin")
+        };
         if bundled.is_dir() {
-            let path = bundled.join(name);
+            let path = bundled.join(&filename);
             return path
                 .is_file()
                 .then_some(path)
@@ -154,9 +177,15 @@ fn binary(name: &str) -> Result<PathBuf, String> {
     .chain(std::env::split_paths(
         &std::env::var_os("PATH").unwrap_or_default(),
     ))
-    .map(|dir| dir.join(name))
+    .map(|dir| dir.join(&filename))
     .find(|path| path.is_file())
-    .ok_or_else(|| format!("缺少 {name}。请运行：brew install mpv yt-dlp deno"))
+    .ok_or_else(|| {
+        if cfg!(windows) {
+            format!("缺少 {name}，请重新安装 Lofi Radio，或将播放工具加入 PATH")
+        } else {
+            format!("缺少 {name}。请运行：brew install mpv yt-dlp deno")
+        }
+    })
 }
 
 impl Player {
@@ -183,18 +212,20 @@ impl Player {
                 .as_nanos(),
             RUNTIME_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
-        fs::DirBuilder::new()
-            .mode(0o700)
-            .create(&runtime_dir)
-            .map_err(|e| e.to_string())?;
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        builder.mode(0o700);
+        builder.create(&runtime_dir).map_err(|e| e.to_string())?;
         Ok(Self {
             snapshot: Snapshot {
                 station,
                 status: "stopped".into(),
                 volume,
+                prevent_sleep: saved["prevent_sleep"].as_bool().unwrap_or(true),
                 error: None,
             },
             child: None,
+            sleep_inhibitor: None,
             ipc: None,
             runtime_dir,
             settings,
@@ -223,49 +254,68 @@ impl Player {
             )),
         )
         .map_err(|e| e.to_string())?;
+        #[cfg(unix)]
         let socket = self.runtime_dir.join("mpv.sock");
+        #[cfg(windows)]
+        let socket = PathBuf::from(format!(
+            r"\\.\pipe\{}",
+            self.runtime_dir.file_name().unwrap().to_string_lossy()
+        ));
         let volume_script = self.runtime_dir.join("volume.lua");
         fs::write(&volume_script, include_str!("volume.lua")).map_err(|e| e.to_string())?;
         let _ = fs::remove_file(&socket);
-        self.child = Some(
-            Command::new(mpv)
-                .args([
-                    "--no-config",
-                    "--ao=avfoundation",
-                    "--idle=yes",
-                    "--vid=no",
-                    "--audio-display=no",
-                    "--force-window=no",
-                    "--no-terminal",
-                    "--ytdl-format=bestaudio",
-                    "--cache=yes",
-                    "--demuxer-max-bytes=8MiB",
-                ])
-                // Start silent until the Lua hook has set this renderer's saved gain.
-                .arg("--volume=0")
-                .arg(format!("--script={}", volume_script.display()))
-                .arg(format!("--input-ipc-server={}", socket.display()))
-                .arg(format!("--log-file={}", self.log.display()))
-                .arg(format!(
-                    "--script-opts=ytdl_hook-ytdl_path={},lofi_volume-volume={}",
-                    ytdlp.display(),
-                    self.snapshot.volume
-                ))
-                .env("PATH", path)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .map_err(|e| format!("无法启动 mpv：{e}"))?,
-        );
+        let mut command = Command::new(mpv);
+        #[cfg(windows)]
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW: playback never opens a console.
+        command
+            .args([
+                "--no-config",
+                "--idle=yes",
+                "--vid=no",
+                "--audio-display=no",
+                "--force-window=no",
+                "--stop-screensaver=no",
+                "--no-terminal",
+                "--ytdl-format=bestaudio",
+                "--cache=yes",
+                "--demuxer-max-bytes=8MiB",
+            ])
+            // Start silent until the Lua hook has set this renderer's saved gain.
+            .arg("--volume=0")
+            .arg(format!("--script={}", volume_script.display()))
+            .arg(format!("--input-ipc-server={}", socket.display()))
+            .arg(format!("--log-file={}", self.log.display()))
+            .arg(format!(
+                "--script-opts=ytdl_hook-ytdl_path={},lofi_volume-volume={}",
+                ytdlp.display(),
+                self.snapshot.volume
+            ))
+            .env("PATH", path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        #[cfg(target_os = "macos")]
+        command.arg("--ao=avfoundation");
+        #[cfg(windows)]
+        command.args(["--ao=wasapi", "--audio-exclusive=no"]);
+        #[cfg(all(test, windows))]
+        command.arg("--ao=null"); // Hosted Windows runners have no audio device.
+        self.child = Some(command.spawn().map_err(|e| format!("无法启动 mpv：{e}"))?);
         for _ in 0..100 {
-            if let Ok(stream) = UnixStream::connect(&socket) {
-                stream
-                    .set_read_timeout(Some(Duration::from_secs(2)))
-                    .map_err(|e| e.to_string())?;
-                stream
-                    .set_write_timeout(Some(Duration::from_secs(2)))
-                    .map_err(|e| e.to_string())?;
+            #[cfg(unix)]
+            let connection = IpcStream::connect(&socket);
+            #[cfg(windows)]
+            let connection = IpcStream::connect(&socket, self.child.as_ref().unwrap().id());
+            if let Ok(stream) = connection {
+                #[cfg(unix)]
+                {
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .map_err(|e| e.to_string())?;
+                    stream
+                        .set_write_timeout(Some(Duration::from_secs(2)))
+                        .map_err(|e| e.to_string())?;
+                }
                 self.ipc = Some(BufReader::new(stream));
                 return Ok(());
             }
@@ -326,6 +376,7 @@ impl Player {
     }
 
     pub fn fail(&mut self, error: String) {
+        self.allow_sleep();
         self.snapshot.status = "error".into();
         self.snapshot.error = Some(error);
         self.connecting_since = None;
@@ -351,7 +402,7 @@ impl Player {
                 self.connecting_since = Some(Instant::now());
             }
         }
-        Ok(())
+        self.sync_sleep_inhibition()
     }
 
     pub fn set_volume(&mut self, volume: u8) -> Result<(), String> {
@@ -363,6 +414,16 @@ impl Player {
         }
         self.snapshot.volume = volume;
         self.save_settings()
+    }
+
+    pub fn set_prevent_sleep(&mut self, enabled: bool) -> Result<(), String> {
+        let previous = self.snapshot.prevent_sleep;
+        self.snapshot.prevent_sleep = enabled;
+        if let Err(error) = self.save_settings() {
+            self.snapshot.prevent_sleep = previous;
+            return Err(error);
+        }
+        self.sync_sleep_inhibition()
     }
 
     pub fn select_station(&mut self, id: &str) -> Result<(), String> {
@@ -392,8 +453,12 @@ impl Player {
         let temp = self.settings.with_extension("tmp");
         fs::write(
             &temp,
-            json!({"volume": self.snapshot.volume, "station": self.snapshot.station.id})
-                .to_string(),
+            json!({
+                "volume": self.snapshot.volume,
+                "station": self.snapshot.station.id,
+                "prevent_sleep": self.snapshot.prevent_sleep,
+            })
+            .to_string(),
         )
         .map_err(|e| format!("无法保存设置：{e}"))?;
         fs::rename(temp, &self.settings).map_err(|e| format!("无法保存设置：{e}"))?;
@@ -401,6 +466,14 @@ impl Player {
     }
 
     pub fn refresh(&mut self) -> Result<(), String> {
+        if let Err(error) = self.refresh_state() {
+            self.allow_sleep();
+            return Err(error);
+        }
+        self.sync_sleep_inhibition()
+    }
+
+    fn refresh_state(&mut self) -> Result<(), String> {
         let Some(child) = self.child.as_mut() else {
             return Ok(());
         };
@@ -449,7 +522,73 @@ impl Player {
         Ok(())
     }
 
+    fn sync_sleep_inhibition(&mut self) -> Result<(), String> {
+        if !self.snapshot.prevent_sleep
+            || self.child.is_none()
+            || !matches!(
+                self.snapshot.status.as_str(),
+                "connecting" | "playing" | "buffering"
+            )
+        {
+            self.allow_sleep();
+        }
+        #[cfg(windows)]
+        if self.snapshot.prevent_sleep
+            && self.child.is_some()
+            && matches!(
+                self.snapshot.status.as_str(),
+                "connecting" | "playing" | "buffering"
+            )
+            && self.sleep_inhibitor.is_none()
+        {
+            self.sleep_inhibitor = Some(
+                crate::windows::prevent_sleep().map_err(|e| format!("无法阻止自动休眠：{e}"))?,
+            );
+        }
+        #[cfg(target_os = "macos")]
+        if self.snapshot.prevent_sleep
+            && self.child.is_some()
+            && matches!(
+                self.snapshot.status.as_str(),
+                "connecting" | "playing" | "buffering"
+            )
+        {
+            if let Some(inhibitor) = self.sleep_inhibitor.as_mut() {
+                if inhibitor.try_wait().map_err(|e| e.to_string())?.is_some() {
+                    self.sleep_inhibitor = None;
+                    return Err("防休眠进程意外退出，请重新播放".into());
+                }
+            } else {
+                // -i blocks idle system sleep, while allowing display sleep on battery or AC.
+                // -w also releases the assertion if mpv exits before our next refresh.
+                self.sleep_inhibitor = Some(
+                    Command::new("/usr/bin/caffeinate")
+                        .args(["-i", "-w", &self.child.as_ref().unwrap().id().to_string()])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                        .map_err(|e| format!("无法阻止自动休眠：{e}"))?,
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn allow_sleep(&mut self) {
+        #[cfg(windows)]
+        if let Some(inhibitor) = self.sleep_inhibitor.take() {
+            crate::windows::allow_sleep(inhibitor);
+        }
+        #[cfg(not(windows))]
+        if let Some(mut inhibitor) = self.sleep_inhibitor.take() {
+            let _ = inhibitor.kill();
+            let _ = inhibitor.wait();
+        }
+    }
+
     pub fn stop(&mut self) {
+        self.allow_sleep();
         self.ipc = None;
         if let Some(mut child) = self.child.take() {
             let _ = child.kill();
@@ -473,7 +612,109 @@ impl Drop for Player {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::net::UnixListener;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn playback_inhibits_only_idle_system_sleep_and_releases_it() {
+        let dir = std::env::temp_dir().join(format!("lofi-sleep-test-{}", std::process::id()));
+        let mut player = Player::new(&dir).unwrap();
+        player.sync_sleep_inhibition().unwrap();
+        assert!(player.sleep_inhibitor.is_none());
+        for action in [
+            "pause",
+            "cancel",
+            "idle",
+            "failure",
+            "disconnect",
+            "shutdown",
+        ] {
+            player.child = Some(Command::new("sleep").arg("60").spawn().unwrap());
+            player.snapshot.status = "connecting".into();
+            player.sync_sleep_inhibition().unwrap();
+            let pid = player.sleep_inhibitor.as_ref().unwrap().id();
+            let deadline = Instant::now() + Duration::from_secs(3);
+            loop {
+                let output = Command::new("/usr/bin/pmset")
+                    .args(["-g", "assertions"])
+                    .output()
+                    .unwrap();
+                assert!(output.status.success());
+                let output = String::from_utf8(output.stdout).unwrap();
+                let assertions: Vec<_> = output
+                    .lines()
+                    .filter(|line| line.trim_start().starts_with(&format!("pid {pid}(")))
+                    .collect();
+                if !assertions.is_empty() {
+                    assert!(
+                        assertions
+                            .iter()
+                            .any(|line| line.contains("PreventUserIdleSystemSleep"))
+                    );
+                    assert!(
+                        !assertions
+                            .iter()
+                            .any(|line| line.contains("PreventUserIdleDisplaySleep"))
+                    );
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "caffeinate did not acquire a sleep assertion"
+                );
+                thread::sleep(Duration::from_millis(30));
+            }
+            for status in ["playing", "buffering"] {
+                player.snapshot.status = status.into();
+                player.sync_sleep_inhibition().unwrap();
+                assert_eq!(player.sleep_inhibitor.as_ref().unwrap().id(), pid);
+            }
+            let playback_pid = player.child.as_ref().unwrap().id();
+            player.set_prevent_sleep(false).unwrap();
+            assert!(player.sleep_inhibitor.is_none());
+            assert!(
+                !Command::new("kill")
+                    .args(["-0", &pid.to_string()])
+                    .stderr(Stdio::null())
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            player.sync_sleep_inhibition().unwrap();
+            assert!(player.sleep_inhibitor.is_none());
+            player.set_prevent_sleep(true).unwrap();
+            let pid = player.sleep_inhibitor.as_ref().unwrap().id();
+            assert_eq!(player.child.as_ref().unwrap().id(), playback_pid);
+            assert_eq!(player.snapshot.status, "buffering");
+            match action {
+                "pause" => player.toggle().unwrap(),
+                "cancel" => {
+                    player.snapshot.status = "connecting".into();
+                    player.toggle().unwrap();
+                }
+                "idle" => {
+                    player.snapshot.status = "stopped".into();
+                    player.sync_sleep_inhibition().unwrap();
+                }
+                "failure" => player.fail("test failure".into()),
+                "disconnect" => assert!(player.refresh().is_err()),
+                _ => player.shutdown(),
+            }
+            assert!(player.sleep_inhibitor.is_none());
+            assert!(
+                !Command::new("kill")
+                    .args(["-0", &pid.to_string()])
+                    .stderr(Stdio::null())
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+            player.stop();
+        }
+        drop(player);
+        fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn station_settings_and_validation() {
@@ -484,24 +725,32 @@ mod tests {
         let mut player = Player::new(&dir).unwrap();
         assert_eq!(player.snapshot.station, STATIONS[0]);
         assert_eq!(player.snapshot.volume, 42);
+        assert!(player.snapshot.prevent_sleep); // Existing settings default to enabled.
         player.snapshot.status = "playing".into();
         assert!(player.select_station("invalid").is_err());
         assert_eq!(player.snapshot.status, "playing");
         player.select_station(STATIONS[0].id).unwrap();
         assert_eq!(player.snapshot.status, "playing");
         assert!(player.child.is_none()); // Selecting the active source does not restart it.
+        fs::create_dir(player.settings.with_extension("tmp")).unwrap();
+        assert!(player.set_prevent_sleep(false).is_err());
+        assert!(player.snapshot.prevent_sleep); // A failed save must restore the menu state.
+        fs::remove_dir(player.settings.with_extension("tmp")).unwrap();
+        player.set_prevent_sleep(false).unwrap();
         player.snapshot.station = STATIONS[1];
         player.set_volume(25).unwrap();
         drop(player);
         let restored = Player::new(&dir).unwrap();
         assert_eq!(restored.snapshot.station, STATIONS[1]);
         assert_eq!(restored.snapshot.volume, 25);
+        assert!(!restored.snapshot.prevent_sleep);
         assert_eq!(restored.snapshot.status, "stopped");
         drop(restored);
         fs::write(&settings, r#"{"volume":999,"station":"removed"}"#).unwrap();
         let fallback = Player::new(&dir).unwrap();
         assert_eq!(fallback.snapshot.station, STATIONS[0]);
         assert_eq!(fallback.snapshot.volume, 100);
+        assert!(fallback.snapshot.prevent_sleep);
         drop(fallback);
         for (index, station) in STATIONS.iter().enumerate() {
             assert!(station.url.starts_with("https://www.youtube.com/watch?v="));
@@ -514,6 +763,72 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "needs bundled Windows playback tools"]
+    fn bundled_windows_player_controls() {
+        let dir = std::env::temp_dir().join(format!("lofi-packaged-test-{}", std::process::id()));
+        let mut player = Player::new(&dir).unwrap();
+        // A local silent WAV exercises playback without network or an audio device.
+        let bytes = 32_000u32 * 2 * 30;
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(bytes + 36).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&32_000u32.to_le_bytes());
+        wav.extend_from_slice(&64_000u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&bytes.to_le_bytes());
+        wav.resize(44 + bytes as usize, 0);
+        let audio = dir.join("quiet sample.wav");
+        fs::write(&audio, wav).unwrap();
+        for _ in 0..2 {
+            player.start().unwrap();
+            player
+                .command(json!(["loadfile", audio, "replace"]))
+                .unwrap();
+            player.snapshot.status = "connecting".into();
+            player.connecting_since = Some(Instant::now());
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while player.snapshot.status == "connecting" && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(50));
+                player.refresh().unwrap();
+            }
+            assert_eq!(player.snapshot.status, "playing");
+            assert!(player.sleep_inhibitor.is_some());
+            player.set_volume(25).unwrap();
+            assert_eq!(
+                player.command(json!(["get_property", "volume"])).unwrap(),
+                25.0
+            );
+            assert_eq!(
+                player.command(json!(["get_property", "vid"])).unwrap(),
+                false
+            );
+            player.set_prevent_sleep(false).unwrap();
+            assert!(player.sleep_inhibitor.is_none());
+            player.set_prevent_sleep(true).unwrap();
+            player.toggle().unwrap();
+            assert_eq!(player.snapshot.status, "paused");
+            assert!(
+                player.child.is_none() && player.ipc.is_none() && player.sleep_inhibitor.is_none()
+            );
+        }
+        player.start().unwrap();
+        player.child.as_mut().unwrap().kill().unwrap();
+        player.child.as_mut().unwrap().wait().unwrap();
+        assert!(player.command(json!(["get_property", "pause"])).is_err());
+        player.shutdown();
+        assert!(!player.runtime_dir.exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
     #[test]
     fn player_controls_and_reports_failure() {
         let dir = std::env::temp_dir().join(format!("lofi-test-{}", std::process::id()));
@@ -546,7 +861,7 @@ mod tests {
             )
             .unwrap();
         });
-        player.ipc = Some(BufReader::new(UnixStream::connect(socket).unwrap()));
+        player.ipc = Some(BufReader::new(IpcStream::connect(socket).unwrap()));
         player.snapshot.status = "playing".into();
         player.set_volume(25).unwrap();
         assert_eq!(player.snapshot.status, "playing");
@@ -558,12 +873,13 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn pausing_or_canceling_drops_the_live_session() {
         let dir = std::env::temp_dir().join(format!("lofi-stop-test-{}", std::process::id()));
         let mut player = Player::new(&dir).unwrap();
         for status in ["playing", "buffering", "connecting"] {
-            let (client, server) = UnixStream::pair().unwrap();
+            let (client, server) = IpcStream::pair().unwrap();
             client
                 .set_read_timeout(Some(Duration::from_millis(200)))
                 .unwrap();
@@ -604,6 +920,7 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     #[ignore = "needs mpv, yt-dlp, deno and a live internet connection"]
     fn live_stream_controls() {
