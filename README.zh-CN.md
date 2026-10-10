@@ -20,6 +20,10 @@
 - **安静地留在后台。** 收起面板，音乐继续；电台与音量会自动记住。
 - **安装即可收听。** 播放依赖已包含在安装包内。
 
+<p align="center">
+  <img src="assets/lofi-macos-screenshot.png" width="320" alt="Lofi Radio 的 macOS 实际播放器界面" />
+</p>
+
 ### 下载
 
 需要 **macOS 15 或更新版本**。应用界面目前使用简体中文。

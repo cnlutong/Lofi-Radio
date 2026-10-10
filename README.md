@@ -20,6 +20,10 @@
 - **Quiet in the background.** Closing the panel keeps the music playing; your station and volume are remembered.
 - **Ready to listen.** Playback dependencies are bundled in the installer.
 
+<p align="center">
+  <img src="assets/lofi-macos-screenshot.png" width="320" alt="Lofi Radio player window on macOS" />
+</p>
+
 ### Download
 
 Requires **macOS 15 or later**. The app interface is currently in Simplified Chinese.
