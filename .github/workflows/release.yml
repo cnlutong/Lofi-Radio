@@ -96,6 +96,8 @@ jobs:
             $version = (Get-Content package.json | ConvertFrom-Json).version
             if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match app version' }
           }
+      - name: Check Windows player and settings
+        run: npm test
       - name: Prepare bundled tools, licenses and corresponding sources
         shell: pwsh
         run: |
@@ -104,8 +106,6 @@ jobs:
       - name: Build installer and check packaged player
         shell: pwsh
         run: |
-          npm test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run tauri -- build --config src-tauri/tauri.windows.release.conf.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $tests = Get-ChildItem src-tauri/target/debug/deps/lofi_radio_lib-*.exe | Select-Object -First 1

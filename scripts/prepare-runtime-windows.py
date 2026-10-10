@@ -146,12 +146,13 @@ def main():
     with ThreadPoolExecutor(max_workers=4) as pool:
         manifest["msys2"] = dict(pool.map(package_sources, sorted(packages)))
     for name, url in {
-        "GPL-2.0.txt": "old-licenses/gpl-2.0.txt",
-        "GPL-3.0.txt": "gpl-3.0.txt",
-        "LGPL-2.1.txt": "old-licenses/lgpl-2.1.txt",
-        "LGPL-3.0.txt": "lgpl-3.0.txt",
+        "GPL-2.0.txt": "GPL-2.0-or-later.txt",
+        "GPL-3.0.txt": "GPL-3.0-or-later.txt",
+        "LGPL-2.1.txt": "LGPL-2.1-or-later.txt",
+        "LGPL-3.0.txt": "LGPL-3.0-or-later.txt",
     }.items():
-        download("https://www.gnu.org/licenses/" + url, notices / "common" / name)
+        download("https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/text/" + url,
+                 notices / "common" / name)
     certificate = RUNTIME / "cacert.pem"
     with urllib.request.urlopen("https://curl.se/ca/cacert.pem.sha256", timeout=30) as response:
         certificate_sha = response.read().decode().split()[0]

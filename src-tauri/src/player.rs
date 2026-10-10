@@ -411,10 +411,11 @@ impl Player {
             _ => {
                 self.stop();
                 self.start()?;
-                self.command(json!(["loadfile", self.snapshot.station.url, "replace"]))?;
                 self.snapshot.status = "connecting".into();
                 self.snapshot.error = None;
                 self.connecting_since = Some(Instant::now());
+                // A fast file-loaded event can arrive before loadfile's response.
+                self.command(json!(["loadfile", self.snapshot.station.url, "replace"]))?;
             }
         }
         self.sync_sleep_inhibition()
@@ -804,11 +805,11 @@ mod tests {
         fs::write(&audio, wav).unwrap();
         for _ in 0..2 {
             player.start().unwrap();
+            player.snapshot.status = "connecting".into();
+            player.connecting_since = Some(Instant::now());
             player
                 .command(json!(["loadfile", audio, "replace"]))
                 .unwrap();
-            player.snapshot.status = "connecting".into();
-            player.connecting_since = Some(Instant::now());
             let deadline = Instant::now() + Duration::from_secs(10);
             while player.snapshot.status == "connecting" && Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(50));
