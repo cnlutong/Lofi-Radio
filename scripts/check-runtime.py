@@ -12,7 +12,9 @@ import tempfile
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("runtime", type=Path)
-    parser.add_argument("--maximum-macos", default="15.0")
+    parser.add_argument("--maximum-macos", default=json.loads(
+        (Path(__file__).resolve().parents[1] / "src-tauri/tauri.conf.json").read_text()
+    )["bundle"]["macOS"]["minimumSystemVersion"])
     parser.add_argument("--test-executable", type=Path)
     parser.add_argument("--live", action="store_true")
     args = parser.parse_args()

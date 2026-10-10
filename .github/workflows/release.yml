@@ -10,15 +10,7 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            arch: aarch64
-          - runner: macos-15-intel
-            arch: x64
-    runs-on: ${{ matrix.runner }}
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,10 +49,10 @@ jobs:
           mkdir release-assets
           cp src-tauri/target/release/bundle/dmg/*.dmg release-assets/
           for file in release-assets/*.dmg; do mv "$file" "${file// /-}"; done
-          cp src-tauri/target/third-party-sources.tar.gz 'release-assets/third-party-sources-${{ matrix.arch }}.tar.gz'
+          cp src-tauri/target/third-party-sources.tar.gz release-assets/third-party-sources-aarch64.tar.gz
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: macos-aarch64
           path: release-assets/*
           if-no-files-found: error
 

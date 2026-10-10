@@ -6,7 +6,7 @@
 <p align="center">A quiet macOS menu bar player for live lofi radio.</p>
 <p align="center">
   <a href="https://github.com/cnlutong/Lofi-Radio/releases/latest"><img src="https://img.shields.io/github/v/release/cnlutong/Lofi-Radio?style=flat&amp;label=download&amp;color=687d53" alt="Latest release" /></a>
-  <img src="https://img.shields.io/badge/macOS-15%2B-687d53?style=flat" alt="macOS 15 or later" />
+  <img src="https://img.shields.io/badge/macOS-27%2B-687d53?style=flat" alt="macOS 27 or later" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-687d53?style=flat" alt="MIT license" /></a>
 </p>
 <p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
@@ -26,12 +26,9 @@
 
 ### Download
 
-Requires **macOS 15 or later**. The app interface is currently in Simplified Chinese.
+New builds require **macOS 27 or later on Apple Silicon**. Intel builds are discontinued. The app interface is currently in Simplified Chinese.
 
-| Your Mac | Installer |
-| :--- | :--- |
-| Apple Silicon · M series | [Download for Apple Silicon](https://github.com/cnlutong/Lofi-Radio/releases/download/v0.1.0/Lofi-Radio_0.1.0_aarch64.dmg) |
-| Intel | [Download for Intel](https://github.com/cnlutong/Lofi-Radio/releases/download/v0.1.0/Lofi-Radio_0.1.0_x64.dmg) |
+[Downloads](https://github.com/cnlutong/Lofi-Radio/releases) · The current v0.1.0 installers are historical macOS 15+ builds; the macOS 27 baseline applies to subsequent builds.
 
 Open the DMG, drag **Lofi Radio** into **Applications**, then launch it. Click **lofi** in the menu bar to start listening. Playback starts manually; pausing disconnects the stream, and playing again reconnects to the live broadcast.
 
@@ -51,7 +48,7 @@ This app uses unofficial YouTube playback and does not distribute music files. S
 <details>
 <summary><strong>Development & building</strong></summary>
 
-Built with Tauri 2, Rust, TypeScript, and CSS. Local development requires macOS 12+, Xcode Command Line Tools, Node.js 22.12+, and Homebrew. Playback dependencies may require a newer macOS version.
+Built with Tauri 2, Rust 2024, TypeScript 6, Vite 8, and CSS. Playback uses AVFoundation through mpv. Local development requires macOS 27+ on Apple Silicon, Xcode 27 Command Line Tools, Node.js 22.12+, and Homebrew.
 
 ```sh
 xcode-select --install  # Skip if already installed
@@ -75,7 +72,7 @@ npm run release:prepare
 npm run release:build
 ```
 
-Installers are written to `src-tauri/target/release/bundle/dmg/`. The [release workflow](.github/workflows/release.yml) builds both architectures on macOS 15 and publishes installers, checksums, and third-party source archives when a matching `v*` version tag is pushed. Dependencies bundled on a newer macOS may require that newer version.
+Installers are written to `src-tauri/target/release/bundle/dmg/`. The [release workflow](.github/workflows/release.yml) builds Apple Silicon installers on macOS 27 using the [`xcode-27` runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md) and publishes installers, checksums, and third-party source archives when a matching `v*` version tag is pushed. Bundled dependencies are checked against the same macOS 27 baseline.
 
 Settings and playback logs live in `~/Library/Application Support/com.lofiradio.desktop/`. Branding assets are in [`assets/`](assets/); the app icon and menu bar mark share the same rounded lettering.
 

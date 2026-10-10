@@ -6,7 +6,7 @@
 <p align="center">安静待在 macOS 菜单栏里的 lofi 直播播放器。</p>
 <p align="center">
   <a href="https://github.com/cnlutong/Lofi-Radio/releases/latest"><img src="https://img.shields.io/github/v/release/cnlutong/Lofi-Radio?style=flat&amp;label=download&amp;color=687d53" alt="最新版本" /></a>
-  <img src="https://img.shields.io/badge/macOS-15%2B-687d53?style=flat" alt="macOS 15 或更新版本" />
+  <img src="https://img.shields.io/badge/macOS-27%2B-687d53?style=flat" alt="macOS 27 或更新版本" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-687d53?style=flat" alt="MIT 许可证" /></a>
 </p>
 <p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
@@ -26,12 +26,9 @@
 
 ### 下载
 
-需要 **macOS 15 或更新版本**。应用界面目前使用简体中文。
+新版安装包需要 **Apple 芯片 Mac 和 macOS 27 或更新版本**，不再提供 Intel 构建。应用界面目前使用简体中文。
 
-| 你的 Mac | 安装包 |
-| :--- | :--- |
-| Apple 芯片 · M 系列 | [下载 Apple 芯片版](https://github.com/cnlutong/Lofi-Radio/releases/download/v0.1.0/Lofi-Radio_0.1.0_aarch64.dmg) |
-| Intel 芯片 | [下载 Intel 版](https://github.com/cnlutong/Lofi-Radio/releases/download/v0.1.0/Lofi-Radio_0.1.0_x64.dmg) |
+[前往下载页面](https://github.com/cnlutong/Lofi-Radio/releases) · 当前 v0.1.0 安装包是历史 macOS 15+ 构建；macOS 27 的最低要求适用于后续构建。
 
 打开 DMG，将 **Lofi Radio** 拖入 **Applications（应用程序）**，然后启动。在菜单栏点击 **lofi** 即可播放。每次启动需要手动开始播放；暂停会断开直播，再次播放时重新连接当前直播。
 
@@ -51,7 +48,7 @@
 <details>
 <summary><strong>开发与构建</strong></summary>
 
-使用 Tauri 2、Rust、TypeScript 和 CSS 构建。本地开发需要 macOS 12+、Xcode Command Line Tools、Node.js 22.12+ 和 Homebrew；播放依赖可能要求更新的 macOS 版本。
+使用 Tauri 2、Rust 2024、TypeScript 6、Vite 8 和 CSS 构建，mpv 通过 AVFoundation 输出音频。本地开发需要 Apple 芯片 Mac、macOS 27+、Xcode 27 Command Line Tools、Node.js 22.12+ 和 Homebrew。
 
 ```sh
 xcode-select --install  # 已安装时跳过
@@ -75,7 +72,7 @@ npm run release:prepare
 npm run release:build
 ```
 
-安装包输出到 `src-tauri/target/release/bundle/dmg/`。[发布工作流](.github/workflows/release.yml) 在 macOS 15 上分别构建两种架构；推送与应用版本匹配的 `v*` 标签后，会发布安装包、校验文件和第三方源码归档。在较新 macOS 上打包的依赖，可能要求同样较新的系统版本。
+安装包输出到 `src-tauri/target/release/bundle/dmg/`。[发布工作流](.github/workflows/release.yml) 使用 [`xcode-27` runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)，在 macOS 27 上构建 Apple 芯片安装包；推送与应用版本匹配的 `v*` 标签后，会发布安装包、校验文件和第三方源码归档。内置依赖统一按 macOS 27 的最低要求检查。
 
 设置与播放日志位于 `~/Library/Application Support/com.lofiradio.desktop/`。品牌素材放在 [`assets/`](assets/) 中；应用图标和菜单栏标识使用同一套圆润字形。
 
