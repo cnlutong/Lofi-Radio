@@ -54,7 +54,16 @@ def dependencies(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sources", action="store_true", help="Archive corresponding source code")
+    parser.add_argument("--check", action="store_true", help="Check source URL normalization offline")
     args = parser.parse_args()
+    if args.check:
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temporary, patch("subprocess.run") as command:
+            for path in ("gettext/gettext-1.0.tar.gz", "gnu/gettext/gettext-1.0.tar.gz"):
+                download("https://ftpmirror.gnu.org/" + path, Path(temporary) / "source.tar.gz")
+                assert command.call_args.args[0][-1] == "https://ftp.gnu.org/gnu/gettext/gettext-1.0.tar.gz"
+        print("Both GNU mirror path formats checked")
+        return
     prefix = Path(output("brew", "--prefix"))
     cellar = Path(output("brew", "--cellar"))
     shutil.rmtree(RUNTIME, ignore_errors=True)

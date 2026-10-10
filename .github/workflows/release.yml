@@ -42,7 +42,9 @@ jobs:
       - name: Run Rust checks
         run: npm test
       - name: Prepare self-contained runtime and corresponding sources
-        run: npm run release:prepare
+        run: |
+          python3 scripts/prepare-runtime.py --check
+          npm run release:prepare
       - name: Build installer
         run: npm run release:build
       - name: Verify packaged dependencies and signatures
