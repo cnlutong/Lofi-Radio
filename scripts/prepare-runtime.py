@@ -34,7 +34,8 @@ def download(url, destination, checksum=None, revision=None):
             subprocess.run(["git", "-C", checkout, "archive", "--format=tar.gz",
                             "--output", str(destination), "FETCH_HEAD"], check=True)
         return
-    url = url.replace("https://ftpmirror.gnu.org/", "https://ftp.gnu.org/gnu/")
+    if url.startswith("https://ftpmirror.gnu.org/"):
+        url = "https://ftp.gnu.org/gnu/" + url.removeprefix("https://ftpmirror.gnu.org/").removeprefix("gnu/")
     subprocess.run([
         "curl", "--fail", "--location", "--silent", "--show-error", "--retry", "3",
         "--connect-timeout", "15", "--max-time", "180",
