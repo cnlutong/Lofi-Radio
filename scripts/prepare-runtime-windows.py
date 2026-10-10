@@ -89,7 +89,9 @@ def main():
         package = owners[binary.relative_to(msys).as_posix().lower()]
         packages.add(package)
         imports = subprocess.check_output([str(objdump), "-p", str(binary)], text=True)
-        for name in re.findall(r"DLL Name:\s*(\S+)", imports):
+        dependencies = re.findall(r"DLL Name:\s*(\S+)", imports)
+        dependencies += [name + ".dll" for name in re.findall(r"Forwarder RVA -- ([^.\s]+)\.", imports)]
+        for name in dependencies:
             if name.lower() in available:
                 pending.append(available[name.lower()])
             else:

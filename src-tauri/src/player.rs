@@ -168,6 +168,15 @@ fn binary(name: &str) -> Result<PathBuf, String> {
                 .ok_or_else(|| format!("安装包缺少 {name}，请重新下载 Lofi Radio"));
         }
     }
+    #[cfg(all(windows, debug_assertions))]
+    {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("runtime/bin")
+            .join(&filename);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
     // Finder-launched apps do not inherit the terminal's Homebrew PATH.
     [
         PathBuf::from("/opt/homebrew/bin"),
@@ -264,7 +273,7 @@ impl Player {
         let volume_script = self.runtime_dir.join("volume.lua");
         fs::write(&volume_script, include_str!("volume.lua")).map_err(|e| e.to_string())?;
         let _ = fs::remove_file(&socket);
-        let mut command = Command::new(mpv);
+        let mut command = Command::new(&mpv);
         #[cfg(windows)]
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW: playback never opens a console.
         command
@@ -297,18 +306,13 @@ impl Player {
         #[cfg(target_os = "macos")]
         command.arg("--ao=avfoundation");
         #[cfg(windows)]
-        command
-            .args(["--ao=wasapi", "--audio-exclusive=no"])
-            .arg(format!(
-                "--tls-ca-file={}",
-                binary("mpv")?
-                    .parent()
-                    .unwrap()
-                    .parent()
-                    .unwrap()
-                    .join("cacert.pem")
-                    .display()
-            ));
+        {
+            command.args(["--ao=wasapi", "--audio-exclusive=no"]);
+            let certificate = mpv.parent().unwrap().parent().unwrap().join("cacert.pem");
+            if certificate.is_file() {
+                command.arg(format!("--tls-ca-file={}", certificate.display()));
+            }
+        }
         #[cfg(all(test, windows))]
         command.arg("--ao=null"); // Hosted Windows runners have no audio device.
         self.child = Some(command.spawn().map_err(|e| format!("无法启动 mpv：{e}"))?);

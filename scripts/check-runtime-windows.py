@@ -15,6 +15,7 @@ def main():
     args = parser.parse_args()
     runtime = args.runtime.resolve()
     assert (runtime / "licenses/README.txt").is_file()
+    assert (runtime / "cacert.pem").is_file()
     # Remove developer tools from PATH: every helper and DLL must come from the bundle.
     windows = Path(os.environ["WINDIR"])
     environment = {**os.environ, "PATH": os.pathsep.join(map(str, [windows / "System32", windows]))}
