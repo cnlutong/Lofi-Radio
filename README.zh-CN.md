@@ -15,7 +15,7 @@
 
 ### 音乐，触手可及
 
-- **13 个直播电台**，陪你学习、放松，也陪你度过深夜。
+- **15 个直播电台**，陪你学习、放松，也陪你度过深夜。
 - **单击播放或暂停。** 右键菜单栏图标，即可切换电台、调整音量或打开面板。
 - **安静地留在后台。** 收起面板，音乐继续；电台与音量会自动记住。
 - **安装即可收听。** 播放依赖已包含在安装包内。
@@ -39,7 +39,7 @@
 <details>
 <summary><strong>电台来源</strong></summary>
 
-直播来自 [Lofi Girl](https://www.youtube.com/@LofiGirl/streams)、[Chillhop Music](https://www.youtube.com/@ChillhopMusic/streams)、[The Bootleg Boy](https://www.youtube.com/@thebootlegboy/streams)、[Homework Radio](https://www.youtube.com/@HomeworkRadio/streams)、[Chill with Taiki](https://www.youtube.com/@ChillwithTaiki/streams) 和 [Purrple Cat](https://www.youtube.com/@PurrpleCat/streams)。
+直播来自 [Lofi Girl](https://www.youtube.com/@LofiGirl/streams)、[Chillhop Music](https://www.youtube.com/@ChillhopMusic/streams)、[The Bootleg Boy](https://www.youtube.com/@thebootlegboy/streams)、[Homework Radio](https://www.youtube.com/@HomeworkRadio/streams)、[Chill with Taiki](https://www.youtube.com/@ChillwithTaiki/streams)、[Purrple Cat](https://www.youtube.com/@PurrpleCat/streams)、[Tokyo LoFi Girls](https://www.youtube.com/channel/UCuk4aLkedGhikPosDKyGHAQ/streams) 和 [Midnight Convenience](https://www.youtube.com/channel/UCQDU0vUP3-Y0nlP0X3ZNCBw/streams)。
 
 应用使用非官方 YouTube 播放方式，不分发音乐文件。直播可能停播或更换链接；播放失效时请更新应用。暂不支持断网或系统睡眠后的自动重连。
 

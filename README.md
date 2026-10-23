@@ -15,7 +15,7 @@
 
 ### Your music, within reach
 
-- **13 live stations** for studying, unwinding, and late nights.
+- **15 live stations** for studying, unwinding, and late nights.
 - **One click to play or pause.** Right-click the menu bar icon for stations, volume, and the player panel.
 - **Quiet in the background.** Closing the panel keeps the music playing; your station and volume are remembered.
 - **Ready to listen.** Playback dependencies are bundled in the installer.
@@ -39,7 +39,7 @@ Open the DMG, drag **Lofi Radio** into **Applications**, then launch it. Click *
 <details>
 <summary><strong>Stations</strong></summary>
 
-Live streams from [Lofi Girl](https://www.youtube.com/@LofiGirl/streams), [Chillhop Music](https://www.youtube.com/@ChillhopMusic/streams), [The Bootleg Boy](https://www.youtube.com/@thebootlegboy/streams), [Homework Radio](https://www.youtube.com/@HomeworkRadio/streams), [Chill with Taiki](https://www.youtube.com/@ChillwithTaiki/streams), and [Purrple Cat](https://www.youtube.com/@PurrpleCat/streams).
+Live streams from [Lofi Girl](https://www.youtube.com/@LofiGirl/streams), [Chillhop Music](https://www.youtube.com/@ChillhopMusic/streams), [The Bootleg Boy](https://www.youtube.com/@thebootlegboy/streams), [Homework Radio](https://www.youtube.com/@HomeworkRadio/streams), [Chill with Taiki](https://www.youtube.com/@ChillwithTaiki/streams), [Purrple Cat](https://www.youtube.com/@PurrpleCat/streams), [Tokyo LoFi Girls](https://www.youtube.com/channel/UCuk4aLkedGhikPosDKyGHAQ/streams), and [Midnight Convenience](https://www.youtube.com/channel/UCQDU0vUP3-Y0nlP0X3ZNCBw/streams).
 
 This app uses unofficial YouTube playback and does not distribute music files. Streams can change or go offline; update the app if playback stops working. Automatic reconnection after network loss or system sleep is not yet supported.
 

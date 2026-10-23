@@ -20,7 +20,7 @@ pub struct Station {
     pub url: &'static str,
 }
 
-// Verified against the official channels' live tabs on 2026-10-10.
+// Verified as live on YouTube on 2026-10-10.
 pub const STATIONS: &[Station] = &[
     Station {
         id: "lofi-girl-study",
@@ -86,6 +86,16 @@ pub const STATIONS: &[Station] = &[
         id: "purrple-cat",
         name: "Purrple Cat",
         url: "https://www.youtube.com/watch?v=OFsJen4j9VY",
+    },
+    Station {
+        id: "tokyo-lofi-girls",
+        name: "Tokyo LoFi Girls · 东京夜雨",
+        url: "https://www.youtube.com/watch?v=1osNMiAV0KY",
+    },
+    Station {
+        id: "midnight-convenience",
+        name: "Midnight Convenience · 雨夜",
+        url: "https://www.youtube.com/watch?v=zR9vBHJdIGw",
     },
 ];
 
