@@ -1,0 +1,6 @@
+{
+  "bundle": {
+    "active": true,
+    "resources": { "runtime-windows/": "runtime/" }
+  }
+}

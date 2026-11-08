@@ -1,7 +1,7 @@
 [package]
 name = "lofi-radio"
-version = "0.1.0"
-description = "A quiet menu bar radio"
+version = "0.2.0"
+description = "A quiet desktop radio"
 edition = "2024"
 license = "MIT"
 
@@ -15,6 +15,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+tauri-plugin-single-instance = "2"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Pipes", "Win32_System_Power", "Win32_System_Threading"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

@@ -3,10 +3,11 @@
 </p>
 <h1 align="center">Lofi Radio</h1>
 <p align="center">A little music. A little focus.</p>
-<p align="center">A quiet macOS menu bar player for live lofi radio.</p>
+<p align="center">A quiet live lofi player for the macOS menu bar and Windows system tray.</p>
 <p align="center">
   <a href="https://github.com/cnlutong/Lofi-Radio/releases/latest"><img src="https://img.shields.io/github/v/release/cnlutong/Lofi-Radio?style=flat&amp;label=download&amp;color=687d53" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/macOS-27%2B-687d53?style=flat" alt="macOS 27 or later" />
+  <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-687d53?style=flat" alt="Windows 10 and 11" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-687d53?style=flat" alt="MIT license" /></a>
 </p>
 <p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
@@ -16,7 +17,7 @@
 ### Your music, within reach
 
 - **15 live stations** for studying, unwinding, and late nights.
-- **One click to play or pause.** Right-click the menu bar icon for stations, volume, and the player panel.
+- **One click to play or pause.** Right-click the menu bar or tray icon for stations, volume, and the player panel.
 - **Quiet in the background.** Closing the panel keeps the music playing; your station and volume are remembered.
 - **Ready to listen.** Playback dependencies are bundled in the installer.
 
@@ -26,13 +27,18 @@
 
 ### Download
 
-New builds require **macOS 27 or later on Apple Silicon**. Intel builds are discontinued. The app interface is currently in Simplified Chinese.
+Version 0.2.0 supports these platforms. The app interface is in Simplified Chinese.
 
-[Downloads](https://github.com/cnlutong/Lofi-Radio/releases) · The current v0.1.0 installers are historical macOS 15+ builds; the macOS 27 baseline applies to subsequent builds.
+| System | Installer |
+| --- | --- |
+| macOS 27 or later on Apple Silicon | `aarch64.dmg` |
+| Windows 10 or 11 on x64 | `x64-setup.exe` |
 
-Open the DMG, drag **Lofi Radio** into **Applications**, then launch it. Click **lofi** in the menu bar to start listening. Playback starts manually; pausing disconnects the stream, and playing again reconnects to the live broadcast.
+**macOS** · Open the DMG, drag **Lofi Radio** into **Applications**, then launch it. Click **lofi** in the menu bar to start listening. The installer uses ad-hoc signing. If macOS blocks it, use **System Settings → Privacy & Security → Open Anyway**. [Apple’s guide](https://support.apple.com/en-us/102445)
 
-> **First launch:** the current release is ad-hoc signed and has not been notarized by Apple. If macOS blocks it, use **System Settings → Privacy & Security → Open Anyway**. [Apple’s guide](https://support.apple.com/en-us/102445).
+**Windows** · Run the installer and open **Lofi Radio** from Start. Closing the panel leaves the icon in the taskbar notification area. The installer can download WebView2 when needed. Windows may show a SmartScreen prompt for the unsigned installer.
+
+Start playback manually after launch. Pausing disconnects the stream, and resuming reconnects to the live broadcast. The tray menu can keep the computer awake during playback while allowing the display to sleep.
 
 [All releases & checksums](https://github.com/cnlutong/Lofi-Radio/releases) · [Report an issue](https://github.com/cnlutong/Lofi-Radio/issues)
 
@@ -48,7 +54,9 @@ This app uses unofficial YouTube playback and does not distribute music files. S
 <details>
 <summary><strong>Development & building</strong></summary>
 
-Built with Tauri 2, Rust 2024, TypeScript 6, Vite 8, and CSS. Playback uses AVFoundation through mpv. Local development requires macOS 27+ on Apple Silicon, Xcode 27 Command Line Tools, Node.js 22.12+, and Homebrew.
+Built with Tauri 2, Rust 2024, TypeScript 6, Vite 8, and CSS. mpv uses AVFoundation on macOS and WASAPI on Windows. Development requires Node.js 22.12+ and stable Rust.
+
+**macOS** · Use macOS 27+ on Apple Silicon with Xcode 27 Command Line Tools and Homebrew.
 
 ```sh
 xcode-select --install  # Skip if already installed
@@ -72,9 +80,28 @@ npm run release:prepare
 npm run release:build
 ```
 
-Installers are written to `src-tauri/target/release/bundle/dmg/`. The [release workflow](.github/workflows/release.yml) builds Apple Silicon installers on macOS 27 using the [`xcode-27` runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md) and publishes installers, checksums, and third-party source archives when a matching `v*` version tag is pushed. Bundled dependencies are checked against the same macOS 27 baseline.
+macOS installers are written to `src-tauri/target/release/bundle/dmg/`. Bundled dependencies are checked against the macOS 27 baseline.
 
-Settings and playback logs live in `~/Library/Application Support/com.lofiradio.desktop/`. Branding assets are in [`assets/`](assets/); the app icon and menu bar mark share the same rounded lettering.
+**Windows** · Install Visual Studio C++ Build Tools with the Windows SDK, WebView2, Python 3.12+, and MSYS2. Install mpv and binutils from the MSYS2 UCRT64 terminal.
+
+```sh
+pacman -Syu
+pacman -S mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-binutils
+```
+
+Run these commands from the project directory in PowerShell, adjusting `C:/msys64` for your installation.
+
+```powershell
+npm ci
+npm run release:prepare:windows -- --msys-root C:/msys64
+npm run tauri dev
+npm test
+npm run release:build:windows
+```
+
+Windows installers are written to `src-tauri/target/release/bundle/nsis/`. Pushing a matching `v*` version tag builds and verifies both platforms on their respective runners and publishes the installers, checksums, and third-party source archives. [Release workflow](.github/workflows/release.yml)
+
+Settings and playback logs live in `~/Library/Application Support/com.lofiradio.desktop/` on macOS and `%APPDATA%\com.lofiradio.desktop\` on Windows. [Branding assets](assets/)
 
 </details>
 
@@ -82,4 +109,4 @@ Settings and playback logs live in `~/Library/Application Support/com.lofiradio.
 
 Project code is available under the [MIT License](LICENSE). Music and third-party brands belong to their respective owners.
 
-Bundled dependencies retain their own licenses, including GPL/LGPL for mpv and some of its dependencies. License and version records are included in `Contents/Resources/runtime/licenses/`; corresponding source, patches, and Homebrew recipes are provided in each release’s `third-party-sources` archives.
+Bundled dependencies retain their own licenses, including GPL/LGPL for mpv and some of its dependencies. License and version records are in `Contents/Resources/runtime/licenses/` on macOS and `runtime\licenses\` in the Windows installation directory. Each platform’s `third-party-sources` archive contains corresponding source, patches, and build recipes.

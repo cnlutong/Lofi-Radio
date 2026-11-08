@@ -1,5 +1,5 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif;
   color: #373d35;
   background: #f5f4ee;
   font-synthesis: none;
@@ -9,6 +9,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 main { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; padding: 36px 28px 28px; }
+@media (max-height: 390px) { main { padding-block: 28px 16px; } }
 header { position: absolute; top: 12px; right: 20px; }
 button { font: inherit; cursor: pointer; border: 0; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #9ba887; outline-offset: 4px; }

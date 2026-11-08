@@ -67,7 +67,7 @@ volume.addEventListener("change", async () => {
 });
 document.querySelector("#hide")!.addEventListener("click", () => invoke("hide_window").catch(showError));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" || (event.metaKey && event.key === "w")) {
+  if (event.key === "Escape" || ((event.metaKey || event.ctrlKey) && event.key === "w")) {
     event.preventDefault();
     invoke("hide_window").catch(showError);
   }

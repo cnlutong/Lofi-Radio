@@ -1,10 +1,15 @@
-下载对应的 DMG，打开后将 **Lofi Radio** 拖到 **Applications（应用程序）**，再启动。菜单栏出现「lofi」后，左键点击播放，右键打开主界面或选择电台。
+Lofi Radio 现已同时提供 macOS 菜单栏版和 Windows 托盘版。两版共用同一款播放器面板，内置 15 个直播电台。
 
-- **aarch64.dmg**：Apple 芯片 Mac。
-- 要求 **macOS 27 或更新版本**，以及能够访问 YouTube 直播的网络。
-- 内置 mpv、yt-dlp、Deno、Python 和所需动态库；无需 Homebrew 或额外安装播放依赖。
-- 安装包采用 ad-hoc 签名，尚未经过 Apple Developer ID 签名与公证。首次打开若被拦截，请到「系统设置 → 隐私与安全性」选择「仍要打开」，再确认。参见 [Apple 说明](https://support.apple.com/zh-cn/102445)。
-- `SHA256SUMS.txt` 可用于校验下载完整性。
-- `third-party-sources` 是内置第三方工具的对应源码、补丁、许可证和构建配方，普通用户无需下载。GitHub 自动提供的 **Source code** 是项目源码，不是安装包。
+| 安装包 | 系统要求 |
+| --- | --- |
+| `aarch64.dmg` | Apple 芯片 Mac，macOS 27 或更新版本 |
+| `x64-setup.exe` | Windows 10 或 11，x64 |
 
-项目代码采用 MIT 许可证；内置第三方工具遵循各自许可证（包括 GPL/LGPL）。不分发音乐文件，直播音乐的权利归原权利人所有。
+- **macOS** · 打开 DMG，将 **Lofi Radio** 拖到「应用程序」。启动后点击菜单栏里的 **lofi** 播放。安装包采用 ad-hoc 签名。若被系统拦截，在「系统设置 → 隐私与安全性」选择「仍要打开」。[Apple 说明](https://support.apple.com/zh-cn/102445)
+- **Windows** · 运行安装程序，再从开始菜单打开 **Lofi Radio**。关闭面板后，播放器留在任务栏通知区域。安装程序会在需要时联网安装 WebView2。安装包未使用发行者证书签名，可能出现 SmartScreen 提示。
+
+左键点击菜单栏或托盘图标可播放或暂停。右键可打开面板、切换电台、调整音量或退出。暂停会断开直播，再次播放时连接当前直播。应用会记住电台、音量和防休眠设置。
+
+播放工具随安装包提供。`SHA256SUMS.txt` 可校验安装包完整性。`third-party-sources` 归档包含内置工具的对应源码、补丁、许可证和构建配方。
+
+项目代码采用 MIT 许可证。内置工具遵循各自的许可证，包括 GPL/LGPL。直播音乐的权利归原权利人所有。

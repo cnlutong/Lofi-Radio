@@ -1,4 +1,6 @@
 mod player;
+#[cfg(windows)]
+mod windows;
 
 use player::{Player, STATIONS, Snapshot, Station};
 use std::{sync::Mutex, thread, time::Duration};
@@ -12,7 +14,10 @@ use tauri::{
 type Radio = Mutex<Player>;
 
 fn tray_icon(status: &str) -> tauri::Result<Image<'static>> {
+    #[cfg(not(windows))]
     let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+    #[cfg(windows)]
+    let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
     if matches!(status, "paused" | "stopped" | "error") {
         let mut rgba = icon.rgba().to_vec();
         for pixel in rgba.chunks_exact_mut(4) {
@@ -29,7 +34,7 @@ fn publish(app: &tauri::AppHandle, snapshot: &Snapshot) {
     if let Some(tray) = app.tray_by_id("radio") {
         let _ = tray.set_tooltip(Some(snapshot.label()));
         if let Ok(icon) = tray_icon(&snapshot.status) {
-            let _ = tray.set_icon_with_as_template(Some(icon), true);
+            let _ = tray.set_icon_with_as_template(Some(icon), cfg!(target_os = "macos"));
         }
     }
     // These handles refer to the menu already attached to the tray.
@@ -76,6 +81,7 @@ async fn control(app: tauri::AppHandle, action: Action) -> Result<Snapshot, Stri
         };
         if let Err(error) = &result {
             if matches!(action, Action::Toggle | Action::Station(_)) {
+                player.stop();
                 player.fail(error.clone());
             } else {
                 player.snapshot.error = Some(error.clone());
@@ -128,13 +134,20 @@ fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
 
 fn show_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }
 }
 
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        show_window(app);
+    }));
+
+    let app = builder
         .invoke_handler(tauri::generate_handler![
             toggle_playback,
             set_volume,
@@ -205,7 +218,7 @@ pub fn run() {
             });
             TrayIconBuilder::with_id("radio")
                 .icon(tray_icon("stopped")?)
-                .icon_as_template(true)
+                .icon_as_template(cfg!(target_os = "macos"))
                 .tooltip("Lofi Radio")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -256,6 +269,8 @@ pub fn run() {
                 })
                 .build(app)?;
             publish(app.handle(), &app.state::<Radio>().lock().unwrap().snapshot);
+            #[cfg(windows)]
+            show_window(app.handle());
             let handle = app.handle().clone();
             thread::spawn(move || {
                 loop {

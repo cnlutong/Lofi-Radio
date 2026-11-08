@@ -3,7 +3,10 @@ local options = { volume = 30 }
 require("mp.options").read_options(options, "lofi_volume")
 
 local function apply()
-    if mp.get_property("current-ao") ~= "avfoundation" then return end
+    if mp.get_property("current-ao") ~= "avfoundation" then
+        mp.set_property_number("volume", options.volume)
+        return
+    end
     -- Renderer gain affects queued audio; software gain waits for the two-second buffer.
     -- Keep mpv's cubic volume curve so the saved level has the same loudness.
     local ok = mp.set_property_number("ao-volume", 100 * (options.volume / 100) ^ 3)

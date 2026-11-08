@@ -1,4 +1,4 @@
-name: macOS release
+name: Desktop release
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  macos:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
@@ -56,9 +56,87 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: msys2/setup-msys2@v2
+        id: msys
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-binutils
+      - name: Install build dependencies
+        run: |
+          rustup update stable --no-self-update
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci
+      - name: Check tag matches app version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $tauriVersion = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version" -or $version -ne $tauriVersion) {
+            throw 'Tag must match app version'
+          }
+      - name: Run Rust checks
+        run: npm test
+      - name: Prepare self-contained runtime and corresponding sources
+        env:
+          MSYS2_ROOT: ${{ steps.msys.outputs.msys2-location }}
+        run: npm run release:prepare:windows -- --msys-root "$env:MSYS2_ROOT"
+      - name: Build Windows installer
+        run: npm run release:build:windows
+      - name: Verify installed player
+        run: |
+          $artifacts = cargo test --locked --manifest-path src-tauri/Cargo.toml --lib --no-run --message-format=json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $test = $artifacts | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.executable -and $_.target.name -eq 'lofi_radio_lib' }
+          $installer = Get-Item src-tauri/target/release/bundle/nsis/*-setup.exe
+          $installDir = Join-Path $env:RUNNER_TEMP 'Lofi Radio installed'
+          $setup = Start-Process $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer failed ($($setup.ExitCode))" }
+          $app = Join-Path $installDir 'lofi-radio.exe'
+          if (!(Test-Path $app)) { throw 'Installed app missing' }
+          python scripts/check-runtime-windows.py "$installDir/runtime" --test-executable $test.executable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PATH = "$env:WINDIR\System32;$env:WINDIR"
+          $process = Start-Process $app -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            if ($process.HasExited) { throw "Installed app exited ($($process.ExitCode))" }
+            $duplicate = Start-Process $app -PassThru
+            if (!$duplicate.WaitForExit(12000)) {
+              Stop-Process -Id $duplicate.Id
+              throw 'Opening the app again left a second instance running'
+            }
+            if ($duplicate.ExitCode -ne 0) { throw "Reopening failed ($($duplicate.ExitCode))" }
+          } finally {
+            if (!$process.HasExited) { Stop-Process -Id $process.Id }
+          }
+      - name: Collect release files
+        run: |
+          New-Item -ItemType Directory release-assets
+          Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | ForEach-Object {
+            Copy-Item $_.FullName (Join-Path release-assets ($_.Name -replace ' ', '-'))
+          }
+          Copy-Item src-tauri/target/third-party-sources-windows-x64.tar.gz release-assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: release-assets/*
+          if-no-files-found: error
+
   publish:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs: [macos, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -73,6 +151,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd release-assets
-          sha256sum *.dmg *.tar.gz > SHA256SUMS.txt
+          sha256sum *.dmg *.exe *.tar.gz > SHA256SUMS.txt
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && exit 0
           gh release create "$GITHUB_REF_NAME" ./* --verify-tag --title "Lofi Radio $GITHUB_REF_NAME" --notes-file ../.github/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"
